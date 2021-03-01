@@ -3,3 +3,5 @@
 *.docx
 
 *.txt
+.gitignore
+.gitmodules
