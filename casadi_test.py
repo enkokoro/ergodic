@@ -2,20 +2,30 @@ import casadi
 import numpy as np 
 import itertools
 
-C = [np.array([1, 1, 1]),
-     np.array([1, 7, 1, 7, 4]), 
-     np.array([2, -4, 7]), 
+C = [np.ones(3),
      np.array([1.2, 1.1, 0.9]),
+     np.array([2, -4, 7]),
+
+     np.ones(5),
+     np.array([1, 1.2, 1.1, 1.3, 0.9]),
+     np.array([1, 7, 1, 7, 4]), 
+
+     np.ones(8),
+     np.array([3.4, 3.5, 3.2, 3, 3.3, 3.2, 3.4, 3.2]),
      np.array([3, -10, 2, 5, -4, 30, 0, 1])]
 
 def sqr_metric(x):                                              # doesn't seem to make sparsity have large effect
     return x**2
-def oneminussqrt_metric(x):
+def oneminussqr_metric(x):
     return 1 - (x-1)**2
-def other_metric(x):
-    return 1 - 1/(100*(x+0.01))
+def oneminusoneover_metric(x, a):
+    return 1 - 1/(a*(x+1/a))
+oneminusoneover100_metric = lambda x:oneminusoneover_metric(x, 100)
+oneminusoneover100_metric.__name__ = "oneminusoneover100_metric"
+oneminusoneover10000_metric = lambda x: oneminusoneover_metric(x, 10000)
+oneminusoneover10000_metric.__name__ = "oneminusoneover10000_metric"
 
-metrics = [sqr_metric, oneminussqrt_metric, other_metric]
+metrics = [oneminussqr_metric, oneminusoneover100_metric, oneminusoneover10000_metric]
 
 for (c, elt_metric) in itertools.product(C, metrics):
     print("="*120)
