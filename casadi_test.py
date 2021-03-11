@@ -1,6 +1,7 @@
 import casadi
 import numpy as np 
 import itertools
+import torch
 
 C = [np.ones(3),
      np.array([1.2, 1.1, 0.9]),
