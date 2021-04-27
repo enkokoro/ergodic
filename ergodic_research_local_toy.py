@@ -77,6 +77,16 @@ def calculate_ergodicity(k_bands, lambd, c_k, mu):
         e += lambd[k]*(c_k[k]-mu[k])**2
     return e
 
+def smooth_if(x, a):
+    """
+    x < a => 1
+    x > a => 0
+
+    larger positive b will make the slope near x=a larger
+    """
+    b = 10
+    exp = casadi.exp(-b*(x-a))
+    return exp/(1+exp)
 
 # %%
 class Agent:
@@ -538,7 +548,7 @@ for k in np.ndindex(*[K]*n):
 # %%
 # filename="mm_ergodic_order2_casadi" 
 # agents = [mm_Agent(i, N, x[i], U_shape, u_max, list(np.ndindex(*[K]*n)), mm_order=2) for i in range(N)]
-filename="multiagents{}_p3_toy_timesteps_{}_delta_{}_sparseweight_{}".format(N, num_plan, delta_t, sparseweight) 
+filename="multiagents{}_p3_local_toy_timesteps_{}_delta_{}_sparseweight_{}".format(N, num_plan, delta_t, sparseweight) 
 # A = [np.array([[0, -0.5], [0.5, 0]]), np.array([[-0.5, 0], [0, -0.5]]), np.array([[-0.5, 0.5], [0.5, -0.5]])]
 # B = [np.array([[1, 0], [0, 1]]), np.array([[1, 0], [0, 1]]), np.array([[1, 0], [0, 1]])]
 # m = [len(b) for b in B]
@@ -606,28 +616,41 @@ for plan_i in range(0, num_plan):
         curr_c_k_plan[j].append(curr_agent_c_k_j)
         curr_agent_c_k_plan[j].append(curr_agent_c_k_j)
     
-A_opt = opti.variable(1, N)
-opti.subject_to(casadi.vec(A_opt) >= 0)                       # elements nonnegative
-opti.subject_to(casadi.vec(A_opt) <= 1)                       # elements bounded by 1
-opti.subject_to(A_opt@np.ones(N) == 1)                        # rows sum to 1
+r_opt = opti.variable(1)
+opti.subject_to(r_opt >= 0)                     
 
 
-opti.set_initial(A_opt, np.array([int(j==0) for j in range(N)]))
+
+# opti.set_initial(A_opt, np.array([int(j==0) for j in range(N)]))
+x_pos = casadi.horzcat(*[curr_x_plan[j][-1] for j in range(N)])
+print("x_pos: ", x_pos.shape)
+A_opt = []
+for j in range(N):
+    a_row = smooth_if(casadi.sum1((curr_x_plan[j][-1] - x_pos)**2), r_opt**2)
+    print("a_row: ", a_row.shape)
+    a_row = a_row/casadi.sum2(a_row)
+    A_opt.append(a_row)
+
+A_opt = casadi.vertcat(*A_opt)
+print("A_opt: ", A_opt.shape)
 ck_new = {}
 for k in np.ndindex(*[K]*n):
     ck = np.array([agents[j].c_k[k] for j in range(N)])
     # ck_sum = casadi.sum1(ck)*np.ones(N)
-    # can try abs sum also
-    ck_new[k] = A_opt@ck
+    #average
+    ck_new[k] = casadi.sum1(A_opt@ck)/N
+    print("ck_new[k]: ", ck_new[k].shape)
      
 # Sparse Metric -- Average element penalization
 sparsemetric = casadi.sum1(casadi.sum2(elt_metric(A_opt)))/A_opt.numel()  
+print("sparsemetric: ", sparsemetric.shape)
 # opti.subject_to(sparsemetric < 0.25)
 
 e_plan = 0
 for k in np.ndindex(*[K]*n):
     e_plan += lambd[k]*(ck_new[k]-mu[k])**2
 
+print("e_plan: ", e_plan.shape)
 # readjust sparsemetric range to be [0, e_plan]
 opti.minimize(e_plan*(1 + sparsemetric))
 
@@ -640,6 +663,7 @@ sol = opti.solve()
 A = sol.value(A_opt).round(r)
 u_plan = [sol.value(u_opt_plan[j]) for j in range(N)]
 x_plan = [[sol.value(curr_x_plan[j][plan_i]) for plan_i in range(num_plan)] for j in range(N)]
+print("optimal radius: ", sol.value(r_opt))
 print("e_plan: ", sol.value(e_plan))
 # planned_e = [sol.value(e_plan_opt[plan_i]) for plan_i in range(0, num_plan)]
 # average of the local ergodicity metrics
