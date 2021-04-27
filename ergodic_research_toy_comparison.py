@@ -538,7 +538,7 @@ for k in np.ndindex(*[K]*n):
 # %%
 # filename="mm_ergodic_order2_casadi" 
 # agents = [mm_Agent(i, N, x[i], U_shape, u_max, list(np.ndindex(*[K]*n)), mm_order=2) for i in range(N)]
-filename="multiagents{}_p3_toy_comparison_timesteps_{}_delta_{}_sparseweight_{}".format(N, num_plan, delta_t, sparseweight) 
+filename="multiagents{}_p3_toy_comparison_nocomm_timesteps_{}_delta_{}_sparseweight_{}".format(N, num_plan, delta_t, sparseweight) 
 # A = [np.array([[0, -0.5], [0.5, 0]]), np.array([[-0.5, 0], [0, -0.5]]), np.array([[-0.5, 0.5], [0.5, -0.5]])]
 # B = [np.array([[1, 0], [0, 1]]), np.array([[1, 0], [0, 1]]), np.array([[1, 0], [0, 1]])]
 # m = [len(b) for b in B]
@@ -667,104 +667,102 @@ for plan_i in range(0, num_plan):
         e += lambd[k]*(ave_c_k-mu[k])**2
 
         plan_e += lambd[k]*(A_log[0]@np.array([agents[j].agent_c_k[k] for j in range(N)])-mu[k])**2
-    overall_e_log.append(e)  
+    overall_e_log.append(plan_e)   ###############
     planned_e_log.append(plan_e)
 
 
 """ CENTRAL VERSION """
 overall_e_log_central = []
 A_log_central = []
-planned_e_log_central = []
 
-""" Casadi Optimization -- Optimal Adjacency Matrix """
-opti_central = casadi.Opti()
+# """ Casadi Optimization -- Optimal Adjacency Matrix """
+# opti_central = casadi.Opti()
 
-""" Unrolling of planning horizon """
-u_opt_plan_central = []
-curr_x_plan_central = [[agents_central[j].x_log[-1]] for j in range(N)]
-curr_v_plan_central = [[np.zeros(agents_central[j].m)] for j in range(N)]
-curr_c_k_plan_central = [[agents_central[j].c_k] for j in range(N)]
-curr_agent_c_k_plan_central = [[agents_central[j].agent_c_k] for j in range(N)]
-u_opt_plan_central = []
-for j in range(N):
-    u_j_central = opti_central.variable(num_plan, agents[j].m)
-    init_central = np.array([[agents_central[j].umax*int(agents_central[j].m-1 == x) for x in range(agents_central[j].m)]])
-    opti_central.set_initial(u_j_central, np.repeat(init_central, [num_plan], axis=0))
-    u_opt_plan_central.append(u_j_central)
+# """ Unrolling of planning horizon """
+# u_opt_plan_central = []
+# curr_x_plan_central = [[agents_central[j].x_log[-1]] for j in range(N)]
+# curr_v_plan_central = [[np.zeros(agents_central[j].m)] for j in range(N)]
+# curr_c_k_plan_central = [[agents_central[j].c_k] for j in range(N)]
+# curr_agent_c_k_plan_central = [[agents_central[j].agent_c_k] for j in range(N)]
+# u_opt_plan_central = []
+# for j in range(N):
+#     u_j_central = opti_central.variable(num_plan, agents_central[j].m)
+#     init_central = np.array([[agents_central[j].umax*int(agents_central[j].m-1 == x) for x in range(agents_central[j].m)]])
+#     opti_central.set_initial(u_j_central, np.repeat(init_central, [num_plan], axis=0))
+#     u_opt_plan_central.append(u_j_central)
 
-for j in range(N):
-    for plan_i in range(num_plan):
-        opti_central.subject_to(casadi.sum1(u_opt_plan_central[j][plan_i,:]**2) <= agents_central[j].umax**2)
+# for j in range(N):
+#     for plan_i in range(num_plan):
+#         opti_central.subject_to(casadi.sum1(u_opt_plan_central[j][plan_i,:]**2) < agents_central[j].umax**2)
 
-for plan_i in range(0, num_plan):
-    # i = big_i*num_plan + plan_i
-    i = plan_i
-    t = i*delta_t # [time, time+time_step]
+# for plan_i in range(0, num_plan):
+#     # i = big_i*num_plan + plan_i
+#     i = plan_i
+#     t = i*delta_t # [time, time+time_step]
 
-    for j in range(N):        
-        x, v = agents_central[j].move(u_opt_plan_central[j][plan_i,:].T, t, delta_t, is_pred=True, 
-                                    prev_x=curr_x_plan_central[j][-1], prev_v=curr_v_plan_central[j][-1])
-        curr_x_plan_central[j].append(x)
-        curr_v_plan_central[j].append(v)
-        opti_central.subject_to(curr_x_plan_central[j][-1][:] >= 0)
-        opti_central.subject_to(curr_x_plan_central[j][-1][:] <= np.array(agents_central[j].U_shape))
-        curr_c_k_j_central, curr_agent_c_k_j_central = agents_central[j].recalculate_c_k(t, delta_t, prev_x=curr_x_plan_central[j][-2], curr_x=curr_x_plan_central[j][-1], 
-                                            old_c_k=curr_c_k_plan_central[j][-1], old_agent_c_k=curr_agent_c_k_plan_central[j][-1])
-        curr_c_k_plan_central[j].append(curr_agent_c_k_j_central)
-        curr_agent_c_k_plan_central[j].append(curr_agent_c_k_j_central)
+#     for j in range(N):        
+#         x, v = agents_central[j].move(u_opt_plan_central[j][plan_i,:].T, t, delta_t, is_pred=True, 
+#                                     prev_x=curr_x_plan_central[j][-1], prev_v=curr_v_plan_central[j][-1])
+#         curr_x_plan_central[j].append(x)
+#         curr_v_plan_central[j].append(v)
+#         opti_central.subject_to(curr_x_plan_central[j][-1][:] > 0)
+#         opti_central.subject_to(curr_x_plan_central[j][-1][:] < np.array(agents_central[j].U_shape))
+#         curr_c_k_j_central, curr_agent_c_k_j_central = agents_central[j].recalculate_c_k(t, delta_t, prev_x=curr_x_plan_central[j][-2], curr_x=curr_x_plan_central[j][-1], 
+#                                             old_c_k=curr_c_k_plan_central[j][-1], old_agent_c_k=curr_agent_c_k_plan_central[j][-1])
+#         curr_c_k_plan_central[j].append(curr_agent_c_k_j_central)
+#         curr_agent_c_k_plan_central[j].append(curr_agent_c_k_j_central)
     
-A_opt_central = np.ones(N).reshape(1, N) / N
+# A_opt_central = np.ones(N).reshape(1, N) / N
 
-ck_new_central = {}
-for k in np.ndindex(*[K]*n):
-    ck_central = np.array([agents_central[j].c_k[k] for j in range(N)])
-    # ck_sum = casadi.sum1(ck)*np.ones(N)
-    # can try abs sum also
-    ck_new_central[k] = A_opt_central@ck_central
+# ck_new_central = {}
+# for k in np.ndindex(*[K]*n):
+#     ck_central = np.array([agents_central[j].c_k[k] for j in range(N)])
+#     # ck_sum = casadi.sum1(ck)*np.ones(N)
+#     # can try abs sum also
+#     ck_new_central[k] = A_opt_central@ck_central
      
-# Sparse Metric -- Average element penalization
-sparsemetric_central = casadi.sum1(casadi.sum2(elt_metric(A_opt_central)))/A_opt_central.numel()  
-# opti.subject_to(sparsemetric < 0.25)
+# # Sparse Metric -- Average element penalization
+# sparsemetric_central = 1  
+# # opti.subject_to(sparsemetric < 0.25)
 
-e_plan_central = 0
-for k in np.ndindex(*[K]*n):
-    e_plan_central += lambd[k]*(ck_new_central[k]-mu[k])**2
+# e_plan_central = 0
+# for k in np.ndindex(*[K]*n):
+#     e_plan_central += lambd[k]*(ck_new_central[k]-mu[k])**2
 
-# readjust sparsemetric range to be [0, e_plan]
-opti_central.minimize(e_plan_central*(1 + sparsemetric_central))
+# # readjust sparsemetric range to be [0, e_plan]
+# opti_central.minimize(e_plan_central*(1 + sparsemetric_central))
 
 
-p_opts = {}
-s_opts = {'print_level': 0}
-opti_central.solver('ipopt', p_opts, s_opts)
-sol_central = opti_central.solve()
+# p_opts = {}
+# s_opts = {'print_level': 0}
+# opti_central.solver('ipopt', p_opts, s_opts)
+# sol_central = opti_central.solve()
 
-A_central = sol_central.value(A_opt_central).round(r)
-u_plan_central = [sol_central.value(u_opt_plan_central[j]) for j in range(N)]
-x_plan_central = [[sol_central.value(curr_x_plan_central[j][plan_i]) for plan_i in range(num_plan)] for j in range(N)]
-print("e_plan_central: ", sol_central.value(e_plan_central))
+# A_central = A_opt_central
+# u_plan_central = [sol_central.value(u_opt_plan_central[j]) for j in range(N)]
+# x_plan_central = [[sol_central.value(curr_x_plan_central[j][plan_i]) for plan_i in range(num_plan)] for j in range(N)]
+# print("e_plan_central: ", sol_central.value(e_plan_central))
 
 
 # %%
+A_central = np.ones(N).reshape(1, N) / N
 A_log_central.append(A_central.reshape(1, N))
-planned_e_log_central = []
+
 " Applying individual controls"
 for plan_i in range(0, num_plan):
     for j in range(N):    
-        agents_central[j].apply_dynamics(t, delta_t, u=u_plan_central[j][plan_i]) # here
+        agents_central[j].apply_dynamics(t, delta_t)#, u=u_plan_central[j][plan_i]) # here
 
         
 
     """ Calculate overall ergodicity """
     e_central = 0
-    plan_e_central = 0
+
     for k in np.ndindex(*[K]*n):
         ave_c_k_central = (1/N)*sum([agents_central[j].agent_c_k[k] for j in range(N)])
-        e_central += lambd[k]*(ave_c_k_central-mu[k])**2
-
-        plan_e_central += lambd[k]*(A_log_central[0]@np.array([agents_central[j].agent_c_k[k] for j in range(N)])-mu[k])**2
+        e_central += lambd[k]*(A_log_central[0]@np.array([agents_central[j].agent_c_k[k] for j in range(N)])-mu[k])**2
     overall_e_log_central.append(e_central)  
-    planned_e_log_central.append(plan_e_central)
+
 
 
 
@@ -778,12 +776,12 @@ print("controls to get location")
 print([np.zeros(2) if i == 0 else (x_plan[0][i] - x_plan[0][i-1])/delta_t for i in range(5)])
 
 
-print("control plan_central for agent 0")
-print(u_plan_central[0][:5])
-print("location plan_central for agent 0")
-print(x_plan_central[0][:5])
-print("controls_central to get location")
-print([np.zeros(2) if i == 0 else (x_plan_central[0][i] - x_plan_central[0][i-1])/delta_t for i in range(5)])
+# print("control plan_central for agent 0")
+# print(u_plan_central[0][:5])
+# print("location plan_central for agent 0")
+# print(x_plan_central[0][:5])
+# print("controls_central to get location")
+# print([np.zeros(2) if i == 0 else (x_plan_central[0][i] - x_plan_central[0][i-1])/delta_t for i in range(5)])
 
 # %%
 """ Animate """ 
@@ -821,14 +819,14 @@ ax2.set(xlabel='Time')
 
 ax5.set_title('Central Local Ergodicities')
 max_local_e_central = float(max([max(agent.e_log) for agent in agents_central]))
-max_e_central = max(float(max(overall_e_log_central)), float(max(planned_e_log_central)), max_local_e_central)
+max_e_central = max(float(max(overall_e_log_central)), max_local_e_central)
 ax5.set_ylim(0, max_e_central)
 ax5.set(xlabel='Time')
 
 ax3.set_title('Weight Matrix')
 
 ax6.set_title('Comparison of Ergodicities')
-ax6.set_y_lim(0, max(overall_e_log + overall_e_log_central))
+ax6.set_ylim(0, max(overall_e_log + overall_e_log_central))
 ax6.set(xlabel='Time')
 
 fig.tight_layout()
@@ -850,7 +848,7 @@ for i in range(N):
     pos_ln, = ax1.plot(pos_data[i][0], pos_data[i][1], c=colors[i], label=i)
     pos_lns.append(pos_ln)
     pos_ln_central, = ax4.plot(pos_data_central[i][0], pos_data_central[i][1], c=colors[i], label=i)
-    pos_lns_central.append(pos_plan_ln_central)
+    pos_lns_central.append(pos_ln_central)
 
     local_erg, = ax2.plot(time_data, local_ergodicity_data[i], c=colors[i], label=i)
     local_erg_lns.append(local_erg)
