@@ -1,4 +1,4 @@
-# Optimal communication between neighbors
+# Comparison of weighted and equally weighted communication
 # To add a new cell, type '# %%'
 # To add a new markdown cell, type '# %% [markdown]'
 # %%
@@ -502,8 +502,8 @@ mu_dist=p3
 plt.contourf(X, Y, np.array(list(map(mu_dist, _s))).reshape(X.shape)) 
 
 N=len(x)
-delta_t=0.1
-K=5
+delta_t=0.05
+K=10
 u_max=0.5
 num_iter = 2000
 num_plan = 100
@@ -538,7 +538,7 @@ for k in np.ndindex(*[K]*n):
 # %%
 # filename="mm_ergodic_order2_casadi" 
 # agents = [mm_Agent(i, N, x[i], U_shape, u_max, list(np.ndindex(*[K]*n)), mm_order=2) for i in range(N)]
-filename="multiagents{}_p3_toy_comparison_nocomm_timesteps_{}_delta_{}_sparseweight_{}".format(N, num_plan, delta_t, sparseweight) 
+filename="multiagents{}_p3_toy_comparison_timesteps_{}_delta_{}_sparseweight_{}".format(N, num_plan, delta_t, sparseweight) 
 # A = [np.array([[0, -0.5], [0.5, 0]]), np.array([[-0.5, 0], [0, -0.5]]), np.array([[-0.5, 0.5], [0.5, -0.5]])]
 # B = [np.array([[1, 0], [0, 1]]), np.array([[1, 0], [0, 1]]), np.array([[1, 0], [0, 1]])]
 # m = [len(b) for b in B]
@@ -635,7 +635,7 @@ for k in np.ndindex(*[K]*n):
     e_plan += lambd[k]*(ck_new[k]-mu[k])**2
 
 # readjust sparsemetric range to be [0, e_plan]
-opti.minimize(e_plan*(1 + sparsemetric))
+opti.minimize(e_plan + sparseweight*sparsemetric)
 
 
 p_opts = {}
@@ -675,83 +675,83 @@ for plan_i in range(0, num_plan):
 overall_e_log_central = []
 A_log_central = []
 
-# """ Casadi Optimization -- Optimal Adjacency Matrix """
-# opti_central = casadi.Opti()
+""" Casadi Optimization -- Optimal Adjacency Matrix """
+opti_central = casadi.Opti()
 
-# """ Unrolling of planning horizon """
-# u_opt_plan_central = []
-# curr_x_plan_central = [[agents_central[j].x_log[-1]] for j in range(N)]
-# curr_v_plan_central = [[np.zeros(agents_central[j].m)] for j in range(N)]
-# curr_c_k_plan_central = [[agents_central[j].c_k] for j in range(N)]
-# curr_agent_c_k_plan_central = [[agents_central[j].agent_c_k] for j in range(N)]
-# u_opt_plan_central = []
-# for j in range(N):
-#     u_j_central = opti_central.variable(num_plan, agents_central[j].m)
-#     init_central = np.array([[agents_central[j].umax*int(agents_central[j].m-1 == x) for x in range(agents_central[j].m)]])
-#     opti_central.set_initial(u_j_central, np.repeat(init_central, [num_plan], axis=0))
-#     u_opt_plan_central.append(u_j_central)
+""" Unrolling of planning horizon """
+u_opt_plan_central = []
+curr_x_plan_central = [[agents_central[j].x_log[-1]] for j in range(N)]
+curr_v_plan_central = [[np.zeros(agents_central[j].m)] for j in range(N)]
+curr_c_k_plan_central = [[agents_central[j].c_k] for j in range(N)]
+curr_agent_c_k_plan_central = [[agents_central[j].agent_c_k] for j in range(N)]
+u_opt_plan_central = []
+for j in range(N):
+    u_j_central = opti_central.variable(num_plan, agents_central[j].m)
+    init_central = np.array([[agents_central[j].umax*int(agents_central[j].m-1 == x) for x in range(agents_central[j].m)]])
+    opti_central.set_initial(u_j_central, np.repeat(init_central, [num_plan], axis=0))
+    u_opt_plan_central.append(u_j_central)
 
-# for j in range(N):
-#     for plan_i in range(num_plan):
-#         opti_central.subject_to(casadi.sum1(u_opt_plan_central[j][plan_i,:]**2) < agents_central[j].umax**2)
+for j in range(N):
+    for plan_i in range(num_plan):
+        opti_central.subject_to(casadi.sum1(u_opt_plan_central[j][plan_i,:]**2) <= agents_central[j].umax**2)
 
-# for plan_i in range(0, num_plan):
-#     # i = big_i*num_plan + plan_i
-#     i = plan_i
-#     t = i*delta_t # [time, time+time_step]
+for plan_i in range(0, num_plan):
+    # i = big_i*num_plan + plan_i
+    i = plan_i
+    t = i*delta_t # [time, time+time_step]
 
-#     for j in range(N):        
-#         x, v = agents_central[j].move(u_opt_plan_central[j][plan_i,:].T, t, delta_t, is_pred=True, 
-#                                     prev_x=curr_x_plan_central[j][-1], prev_v=curr_v_plan_central[j][-1])
-#         curr_x_plan_central[j].append(x)
-#         curr_v_plan_central[j].append(v)
-#         opti_central.subject_to(curr_x_plan_central[j][-1][:] > 0)
-#         opti_central.subject_to(curr_x_plan_central[j][-1][:] < np.array(agents_central[j].U_shape))
-#         curr_c_k_j_central, curr_agent_c_k_j_central = agents_central[j].recalculate_c_k(t, delta_t, prev_x=curr_x_plan_central[j][-2], curr_x=curr_x_plan_central[j][-1], 
-#                                             old_c_k=curr_c_k_plan_central[j][-1], old_agent_c_k=curr_agent_c_k_plan_central[j][-1])
-#         curr_c_k_plan_central[j].append(curr_agent_c_k_j_central)
-#         curr_agent_c_k_plan_central[j].append(curr_agent_c_k_j_central)
+    for j in range(N):        
+        x, v = agents_central[j].move(u_opt_plan_central[j][plan_i,:].T, t, delta_t, is_pred=True, 
+                                    prev_x=curr_x_plan_central[j][-1], prev_v=curr_v_plan_central[j][-1])
+        curr_x_plan_central[j].append(x)
+        curr_v_plan_central[j].append(v)
+        opti_central.subject_to(curr_x_plan_central[j][-1] >= 0)
+        opti_central.subject_to(curr_x_plan_central[j][-1] <= np.array(agents_central[j].U_shape))
+        curr_c_k_j_central, curr_agent_c_k_j_central = agents_central[j].recalculate_c_k(t, delta_t, prev_x=curr_x_plan_central[j][-2], curr_x=curr_x_plan_central[j][-1], 
+                                            old_c_k=curr_c_k_plan_central[j][-1], old_agent_c_k=curr_agent_c_k_plan_central[j][-1])
+        curr_c_k_plan_central[j].append(curr_agent_c_k_j_central)
+        curr_agent_c_k_plan_central[j].append(curr_agent_c_k_j_central)
     
-# A_opt_central = np.ones(N).reshape(1, N) / N
+A_opt_central = np.ones(N).reshape(1, N) / N
 
-# ck_new_central = {}
-# for k in np.ndindex(*[K]*n):
-#     ck_central = np.array([agents_central[j].c_k[k] for j in range(N)])
-#     # ck_sum = casadi.sum1(ck)*np.ones(N)
-#     # can try abs sum also
-#     ck_new_central[k] = A_opt_central@ck_central
+ck_new_central = {}
+for k in np.ndindex(*[K]*n):
+    ck_central = np.array([agents_central[j].c_k[k] for j in range(N)])
+    # ck_sum = casadi.sum1(ck)*np.ones(N)
+    # can try abs sum also
+    ck_new_central[k] = A_opt_central@ck_central
      
-# # Sparse Metric -- Average element penalization
-# sparsemetric_central = 1  
-# # opti.subject_to(sparsemetric < 0.25)
+# Sparse Metric -- Average element penalization
+sparsemetric_central = 1  
+# opti.subject_to(sparsemetric < 0.25)
 
-# e_plan_central = 0
-# for k in np.ndindex(*[K]*n):
-#     e_plan_central += lambd[k]*(ck_new_central[k]-mu[k])**2
+e_plan_central = 0
+for k in np.ndindex(*[K]*n):
+    e_plan_central += lambd[k]*(ck_new_central[k]-mu[k])**2
 
-# # readjust sparsemetric range to be [0, e_plan]
-# opti_central.minimize(e_plan_central*(1 + sparsemetric_central))
+# readjust sparsemetric range to be [0, e_plan]
+opti_central.minimize(e_plan_central + sparseweight * sparsemetric_central)
 
 
-# p_opts = {}
-# s_opts = {'print_level': 0}
-# opti_central.solver('ipopt', p_opts, s_opts)
-# sol_central = opti_central.solve()
+p_opts = {}
+s_opts = {'print_level': 0}
+opti_central.solver('ipopt', p_opts, s_opts)
+sol_central = opti_central.solve()
 
-# A_central = A_opt_central
-# u_plan_central = [sol_central.value(u_opt_plan_central[j]) for j in range(N)]
-# x_plan_central = [[sol_central.value(curr_x_plan_central[j][plan_i]) for plan_i in range(num_plan)] for j in range(N)]
-# print("e_plan_central: ", sol_central.value(e_plan_central))
+A_central = A_opt_central
+u_plan_central = [sol_central.value(u_opt_plan_central[j]) for j in range(N)]
+x_plan_central = [[sol_central.value(curr_x_plan_central[j][plan_i]) for plan_i in range(num_plan)] for j in range(N)]
+print("e_plan_central: ", sol_central.value(e_plan_central))
 
 
 # %%
-A_central = np.ones(N).reshape(1, N) / N
+# A_central = np.ones(N).reshape(1, N) / N
 A_log_central.append(A_central.reshape(1, N))
 
 " Applying individual controls"
 for plan_i in range(0, num_plan):
     for j in range(N):    
-        agents_central[j].apply_dynamics(t, delta_t)#, u=u_plan_central[j][plan_i]) # here
+        agents_central[j].apply_dynamics(t, delta_t, u=u_plan_central[j][plan_i]) # here
 
         
 
